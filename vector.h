@@ -11,13 +11,13 @@ private:
     friend class MathVector;
 
     template<typename... Ts>
-    struct all_same : std::false_type { };//TODO: Rename
+    struct AllSame : std::false_type { };
 
     template<typename T>
-    struct all_same<T> : std::true_type { };
+    struct AllSame<T> : std::true_type { };
 
     template<typename T, typename... Ts>
-    struct all_same<T, T, Ts...> : all_same<T, Ts...> { };
+    struct AllSame<T, T, Ts...> : AllSame<T, Ts...> { };
 };
 
 template<typename T, unsigned int N, T DefaultValue = 0>
@@ -30,13 +30,13 @@ public:
 
     template<typename... T2,
              typename std::enable_if<sizeof...(T2) == N, int>::type = 0,
-             typename std::enable_if<MathVectorHelper::all_same<T, T2...>::value, int>::type = 0>
+             typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type = 0>
     MathVector(T2... args);
 
     template<unsigned int N2,
              typename... T2,
              typename std::enable_if<sizeof...(T2) + N2 == N, int>::type = 0,
-             typename std::enable_if<MathVectorHelper::all_same<T, T2...>::value, int>::type = 0>
+             typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type = 0>
     MathVector(const MathVector<T, N2, DefaultValue>& other, T2... args);
 
     virtual ~MathVector();
@@ -45,7 +45,17 @@ public:
 
     const T& operator[](unsigned int i) const;
 
+    template<unsigned int N2,
+             typename std::enable_if<N2 <= N, int>::type = 0>
+    MathVector operator+=(const MathVector<T,N2,DefaultValue>& other);
 
+    template<unsigned int N2,
+             typename std::enable_if<N2 <= N, int>::type = 0>
+    MathVector operator+(const MathVector<T,N2,DefaultValue>& other) const;
+
+    template<unsigned int N2,
+             typename std::enable_if<(N2 > N), int>::type = 0>
+    MathVector<T, N2, DefaultValue> operator+(const MathVector<T,N2,DefaultValue>& other) const;
 };
 
 template <typename T,
@@ -62,7 +72,7 @@ template <typename T,
           T DefaultValue>
 template <typename... T2,
           typename std::enable_if<sizeof...(T2) == N, int>::type,
-          typename std::enable_if<MathVectorHelper::all_same<T, T2...>::value, int>::type>
+          typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type>
 MathVector<T,N,DefaultValue>::MathVector(T2... args) {
     data = new T[N];
     int i = 0;
@@ -78,7 +88,7 @@ template <typename T,
 template <unsigned int N2,
           typename... T2,
           typename std::enable_if<sizeof...(T2) + N2 == N, int>::type,
-          typename std::enable_if<MathVectorHelper::all_same<T, T2...>::value, int>::type>
+          typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type>
 MathVector<T,N,DefaultValue>::MathVector(const MathVector<T, N2, DefaultValue>& other, T2... args) {
     data = new T[N];
     for (int i = 0; i < N2; i++)
@@ -109,4 +119,34 @@ template <typename T,
           T DefaultValue>
 const T& MathVector<T,N,DefaultValue>::operator[](unsigned int i) const {
     return data[i];
+}
+
+template <typename T,
+          unsigned int N,
+          T DefaultValue>
+template<unsigned int N2,
+         typename std::enable_if<N2 <= N, int>::type>
+MathVector<T,N,DefaultValue> MathVector<T,N,DefaultValue>::operator+=(const MathVector<T,N2,DefaultValue>& other) {
+    for (int i = 0; i < N2; i++)
+        this->operator[](i) += other[i];
+    return *this;
+}
+
+template <typename T,
+          unsigned int N,
+          T DefaultValue>
+template<unsigned int N2,
+         typename std::enable_if<N2 <= N, int>::type>
+MathVector<T,N,DefaultValue> MathVector<T,N,DefaultValue>::operator+(const MathVector<T,N2,DefaultValue>& other) const {
+    MathVector<T,N,DefaultValue> ret(*this);
+    return ret += other;
+}
+
+template <typename T,
+          unsigned int N,
+          T DefaultValue>
+template<unsigned int N2,
+         typename std::enable_if<(N2 > N), int>::type>
+MathVector<T,N2,DefaultValue> MathVector<T,N,DefaultValue>::operator+(const MathVector<T,N2,DefaultValue>& other) const {
+    return other.operator+(*this);
 }

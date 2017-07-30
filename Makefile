@@ -18,9 +18,9 @@ MAIN = $(ODIR)app
 
 ARGS =
 
-.PHONY: all clean
+.PHONY: all clean run
 
-all: $(MAIN) clean
+all: $(MAIN) clean #run
 
 $(MAIN): $(ODIR) $(OBJS)
 	$(CXX) $(CPPFLAGS) $(INCLUDES) -o $(MAIN) $(OBJS) $(LFLAGS) $(LIBS)
