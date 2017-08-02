@@ -2,42 +2,58 @@
 #include <vector>
 #include <initializer_list>
 
-template<typename T, unsigned int N, T DefaultValue>
+template<class T, unsigned int N, class Allocator = std::allocator<T>>
 class MathVector;
 
 class MathVectorHelper {
 private:
-    template<typename T, unsigned int N, T DefaultValue>
+    template<class T, unsigned int N, class Allocator>
     friend class MathVector;
 
-    template<typename... Ts>
+    template<class... Ts>
     struct AllSame : std::false_type { };
 
-    template<typename T>
+    template<class T>
     struct AllSame<T> : std::true_type { };
 
-    template<typename T, typename... Ts>
+    template<class T, class... Ts>
     struct AllSame<T, T, Ts...> : AllSame<T, Ts...> { };
+
+    template<bool B, class T1 = void, class T2 = void>
+    struct SwitchTypeIf { typedef T1 Type; };
+
+    template<class T1, class T2>
+    struct SwitchTypeIf<true, T1, T2> { typedef T2 Type; };
+
+    template<class T>
+    using FloatingType = typename SwitchTypeIf<AllSame<T,double>::value, float, double>::Type;
 };
 
-template<typename T, unsigned int N, T DefaultValue = 0>
+template<class T, unsigned int N, class Allocator>
 class MathVector
 {
 private:
     T* data;
+    Allocator allocator;
 public:
+    class Iterator;
+
     MathVector();
 
-    template<typename... T2,
+    MathVector(const T& DefaultValue);
+
+    template<class... T2,
              typename std::enable_if<sizeof...(T2) == N, int>::type = 0,
              typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type = 0>
     MathVector(T2... args);
+
+    MathVector(const MathVector<T, N, Allocator>& other);
 
     template<unsigned int N2,
              typename... T2,
              typename std::enable_if<sizeof...(T2) + N2 == N, int>::type = 0,
              typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type = 0>
-    MathVector(const MathVector<T, N2, DefaultValue>& other, T2... args);
+    MathVector(const MathVector<T, N2, Allocator>& other, T2... args);
 
     virtual ~MathVector();
 
@@ -47,34 +63,123 @@ public:
 
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
-    MathVector operator+=(const MathVector<T,N2,DefaultValue>& other);
+    MathVector& operator+=(const MathVector<T,N2,Allocator>& other);
 
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
-    MathVector operator+(const MathVector<T,N2,DefaultValue>& other) const;
+    MathVector operator+(const MathVector<T,N2,Allocator>& other) const;
 
     template<unsigned int N2,
              typename std::enable_if<(N2 > N), int>::type = 0>
-    MathVector<T, N2, DefaultValue> operator+(const MathVector<T,N2,DefaultValue>& other) const;
+    MathVector<T, N2, Allocator> operator+(const MathVector<T, N2, Allocator>& other) const;
+
+    MathVector operator-() const;
+
+    template<unsigned int N2,
+             typename std::enable_if<N2 <= N, int>::type = 0>
+    MathVector& operator-=(const MathVector<T,N2,Allocator>& other);
+
+    template<unsigned int N2,
+             typename std::enable_if<N2 <= N, int>::type = 0>
+    MathVector operator-(const MathVector<T,N2,Allocator>& other) const;
+
+    template<unsigned int N2,
+             typename std::enable_if<(N2 > N), int>::type = 0>
+    MathVector<T, N2, Allocator> operator-(const MathVector<T, N2, Allocator>& other) const;
+
+    template<unsigned int N2,
+             typename std::enable_if<N2 <= N, int>::type = 0>
+    MathVectorHelper::FloatingType<T> operator*(const MathVector<T,N2,Allocator>& other) const;
+
+    template<unsigned int N2,
+             typename std::enable_if<(N2 > N), int>::type = 0>
+    MathVectorHelper::FloatingType<T> operator*(const MathVector<T, N2, Allocator>& other) const;
+
+    MathVector& operator*=(MathVectorHelper::FloatingType<T> other);
+
+    MathVector operator*(MathVectorHelper::FloatingType<T> other) const;
+
+    MathVector& operator/=(MathVectorHelper::FloatingType<T> other);
+
+    MathVector operator/(MathVectorHelper::FloatingType<T> other) const;
+
+    MathVectorHelper::FloatingType<T> getLength() const;
+
+    Iterator begin();
+
+    Iterator end();
 };
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
-MathVector<T,N,DefaultValue>::MathVector() {
-    data = new T[N];
+          class Allocator>
+class MathVector<T,N,Allocator>::Iterator {
+private:
+    T* data;
+    Iterator(T* data);
+    friend class MathVector<T,N,Allocator>;
+public:
+    typedef int difference_type;
+    typedef T value_type;
+    typedef T* pointer;
+    typedef T& reference;
+    typedef std::random_access_iterator_tag iterator_category;
+    Iterator();
+    Iterator(const Iterator& it);
+    Iterator& operator=(const Iterator& it);
+    ~Iterator();
+    T& operator*();
+    const T& operator*() const;
+    Iterator& operator++();
+    Iterator operator++(int x);
+    Iterator& operator--();
+    Iterator operator--(int x);
+    Iterator& operator+=(int x);
+    Iterator operator+(int x) const;
+    Iterator& operator-=(int x);
+    Iterator operator-(int x) const;
+    T& operator[](int x);
+    const T& operator[](int x) const;
+    int operator-(const Iterator& it) const;
+    bool operator==(const Iterator& it) const;
+    bool operator!=(const Iterator& it) const;
+    bool operator<(const Iterator& it) const;
+    bool operator>(const Iterator& it) const;
+    bool operator<=(const Iterator& it) const;
+    bool operator>=(const Iterator& it) const;
+    T* operator->();
+    const T* operator->() const;
+};
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T,N,Allocator>::MathVector() {
+    allocator = Allocator();
+    data = allocator.allocate(N);
+    for (unsigned int i = 0; i < N; i++)
+        data[i] = T();
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T,N,Allocator>::MathVector(const T& DefaultValue) {
+    allocator = Allocator();
+    data = allocator.allocate(N);
     for (unsigned int i = 0; i < N; i++)
         data[i] = DefaultValue;
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
-template <typename... T2,
+          class Allocator>
+template <class... T2,
           typename std::enable_if<sizeof...(T2) == N, int>::type,
           typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type>
-MathVector<T,N,DefaultValue>::MathVector(T2... args) {
-    data = new T[N];
+MathVector<T,N,Allocator>::MathVector(T2... args) {
+    allocator = Allocator();
+    data = allocator.allocate(N);
     int i = 0;
     for (T t : {args...}) {
         data[i] = t;
@@ -82,15 +187,28 @@ MathVector<T,N,DefaultValue>::MathVector(T2... args) {
     }
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
+          class Allocator>
+MathVector<T,N,Allocator>::MathVector(const MathVector<T, N, Allocator>& other) {
+    allocator = Allocator();
+    data = allocator.allocate(N);
+    for (int i = 0; i < N; i++)
+    {
+        data[i] = other[i];
+    }
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
 template <unsigned int N2,
-          typename... T2,
+          class... T2,
           typename std::enable_if<sizeof...(T2) + N2 == N, int>::type,
           typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type>
-MathVector<T,N,DefaultValue>::MathVector(const MathVector<T, N2, DefaultValue>& other, T2... args) {
-    data = new T[N];
+MathVector<T,N,Allocator>::MathVector(const MathVector<T, N2, Allocator>& other, T2... args) {
+    allocator = Allocator();
+    data = allocator.allocate(N);
     for (int i = 0; i < N2; i++)
     {
         data[i] = other[i];
@@ -102,51 +220,372 @@ MathVector<T,N,DefaultValue>::MathVector(const MathVector<T, N2, DefaultValue>& 
     }
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
-MathVector<T,N,DefaultValue>::~MathVector() {}
+          class Allocator>
+MathVector<T,N,Allocator>::~MathVector() {
+    allocator = Allocator();
+    allocator.deallocate(data, N);
+    data = nullptr;
+}
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
-T& MathVector<T,N,DefaultValue>::operator[](unsigned int i) {
+          class Allocator>
+T& MathVector<T,N,Allocator>::operator[](unsigned int i) {
     return data[i];
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
-const T& MathVector<T,N,DefaultValue>::operator[](unsigned int i) const {
+          class Allocator>
+const T& MathVector<T,N,Allocator>::operator[](unsigned int i) const {
     return data[i];
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
+          class Allocator>
 template<unsigned int N2,
          typename std::enable_if<N2 <= N, int>::type>
-MathVector<T,N,DefaultValue> MathVector<T,N,DefaultValue>::operator+=(const MathVector<T,N2,DefaultValue>& other) {
+MathVector<T,N,Allocator>& MathVector<T,N,Allocator>::operator+=(const MathVector<T,N2,Allocator>& other) {
     for (int i = 0; i < N2; i++)
         this->operator[](i) += other[i];
     return *this;
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
+          class Allocator>
 template<unsigned int N2,
          typename std::enable_if<N2 <= N, int>::type>
-MathVector<T,N,DefaultValue> MathVector<T,N,DefaultValue>::operator+(const MathVector<T,N2,DefaultValue>& other) const {
-    MathVector<T,N,DefaultValue> ret(*this);
+MathVector<T,N,Allocator> MathVector<T,N,Allocator>::operator+(const MathVector<T,N2,Allocator>& other) const {
+    MathVector<T,N,Allocator> ret(*this);
     return ret += other;
 }
 
-template <typename T,
+template <class T,
           unsigned int N,
-          T DefaultValue>
+          class Allocator>
 template<unsigned int N2,
          typename std::enable_if<(N2 > N), int>::type>
-MathVector<T,N2,DefaultValue> MathVector<T,N,DefaultValue>::operator+(const MathVector<T,N2,DefaultValue>& other) const {
+MathVector<T,N2,Allocator> MathVector<T,N,Allocator>::operator+(const MathVector<T,N2,Allocator>& other) const {
     return other.operator+(*this);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T,N,Allocator> MathVector<T,N,Allocator>::operator-() const {
+    MathVector<T,N,Allocator> ret(*this);
+    for (int i = 0; i < N; i++)
+        ret[i] = - ret[i];
+    return ret;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+template<unsigned int N2,
+         typename std::enable_if<N2 <= N, int>::type>
+MathVector<T,N,Allocator>& MathVector<T,N,Allocator>::operator-=(const MathVector<T,N2,Allocator>& other) {
+    for (int i = 0; i < N2; i++)
+        this->operator[](i) -= other[i];
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+template<unsigned int N2,
+         typename std::enable_if<N2 <= N, int>::type>
+MathVector<T,N,Allocator> MathVector<T,N,Allocator>::operator-(const MathVector<T,N2,Allocator>& other) const {
+    MathVector<T,N,Allocator> ret(*this);
+    return ret -= other;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+template<unsigned int N2,
+         typename std::enable_if<(N2 > N), int>::type>
+MathVector<T,N2,Allocator> MathVector<T,N,Allocator>::operator-(const MathVector<T,N2,Allocator>& other) const {
+    return -other += *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+template<unsigned int N2,
+         typename std::enable_if<N2 <= N, int>::type>
+MathVectorHelper::FloatingType<T> MathVector<T,N,Allocator>::operator*(const MathVector<T,N2,Allocator>& other) const {
+    float sum = 0.0f;
+    for (int i = 0; i < N2; i++)
+        sum += this->operator[](i) * other[i];
+    return sum;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+template<unsigned int N2,
+         typename std::enable_if<(N2 > N), int>::type>
+MathVectorHelper::FloatingType<T> MathVector<T,N,Allocator>::operator*(const MathVector<T,N2,Allocator>& other) const {
+    return other.operator*(*this);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>& MathVector<T, N, Allocator>::operator*=(MathVectorHelper::FloatingType<T> other) {
+    for (int i = 0; i < N; i++)
+        this->operator[](i) *= other;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator> MathVector<T, N, Allocator>::operator*(MathVectorHelper::FloatingType<T> other) const {
+    MathVector<T,N,Allocator> ret(*this);
+    return ret *= other;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator> operator*(MathVectorHelper::FloatingType<T> scalar, const MathVector<T, N, Allocator>& vector) {
+    return vector * scalar;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>& MathVector<T, N, Allocator>::operator/=(MathVectorHelper::FloatingType<T> other) {
+    for (int i = 0; i < N; i++)
+        this->operator[](i) /= other;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator> MathVector<T, N, Allocator>::operator/(MathVectorHelper::FloatingType<T> other) const {
+    MathVector<T,N,Allocator> ret(*this);
+    return ret /= other;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVectorHelper::FloatingType<T> MathVector<T, N, Allocator>::getLength() const {
+    return this->operator*(*this);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::begin() {
+    return Iterator(data);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::end() {
+    return Iterator(data + N);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>::Iterator::Iterator(T* data) : data(data) {}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>::Iterator::Iterator() : data(nullptr) {}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>::Iterator::Iterator(const Iterator& it) : data(it.data) {}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator=(const Iterator& it) {
+    this->data = it.data;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>::Iterator::~Iterator() {}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+T& MathVector<T, N, Allocator>::Iterator::operator*() {
+    return *data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+const T& MathVector<T, N, Allocator>::Iterator::operator*() const {
+    return *data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator++() {
+    ++data;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator++(int x) {
+    Iterator it(*this);
+    ++data;
+    return it;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator--() {
+    --data;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator--(int x) {
+    Iterator it(*this);
+    --data;
+    return it;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator+=(int x) {
+    data+=x;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator+(int x) const {
+    Iterator it(*this);
+    data+=x;
+    return it;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator operator+(int x,  const typename MathVector<T, N, Allocator>::Iterator& y) {
+    return y + x;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator-=(int x) {
+    data-=x;
+    return *this;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator-(int x) const {
+    Iterator it(*this);
+    data-=x;
+    return it;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+T& MathVector<T, N, Allocator>::Iterator::operator[](int x) {
+    return *(*this + x);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+const T& MathVector<T, N, Allocator>::Iterator::operator[](int x) const {
+    return *(*this + x);
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+int MathVector<T, N, Allocator>::Iterator::operator-(const typename MathVector<T, N, Allocator>::Iterator& it) const {
+    return this->data - it.data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+bool MathVector<T, N, Allocator>::Iterator::operator==(const Iterator& it) const {
+    return this->data == it.data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+bool MathVector<T, N, Allocator>::Iterator::operator!=(const Iterator& it) const {
+    return this->data != it.data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+bool MathVector<T, N, Allocator>::Iterator::operator<(const typename MathVector<T, N, Allocator>::Iterator& it) const {
+    return this->operator-(it) < 0;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+bool MathVector<T, N, Allocator>::Iterator::operator>(const typename MathVector<T, N, Allocator>::Iterator& it) const {
+    return this->operator-(it) > 0;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+bool MathVector<T, N, Allocator>::Iterator::operator<=(const typename MathVector<T, N, Allocator>::Iterator& it) const {
+    return this->operator-(it) <= 0;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+bool MathVector<T, N, Allocator>::Iterator::operator>=(const typename MathVector<T, N, Allocator>::Iterator& it) const {
+    return this->operator-(it) >= 0;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+T* MathVector<T, N, Allocator>::Iterator::operator->() {
+    return data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+const T* MathVector<T, N, Allocator>::Iterator::operator->() const {
+    return data;
 }
