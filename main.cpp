@@ -1,10 +1,10 @@
 
 #include <iostream>
-#include "vector.h"
+//#include "vector.h"
 using namespace std;
 int main()
 {
-    MathVector<int, 3> m = {2, 4, 7};
+    /*MathVector<int, 3> m = {2, 4, 7};
     MathVector<int, 3> m2 = -m;
     MathVector<int, 2> m3 = {1, 5};
     MathVector<int, 3> m4 = m - m3;
@@ -55,6 +55,9 @@ int main()
     for (int i = 0; i < 3; i++)
         cout << m5[i] << ", ";
     cout << endl;
-
+*/
+    cout << "Hello World" << endl;
     return 0;
+
+    //ce faci
 }

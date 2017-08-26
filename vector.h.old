@@ -30,83 +30,59 @@ private:
 };
 
 template<class T, unsigned int N, class Allocator>
-class MathVector
-{
+class MathVector {
 private:
     T* data;
     Allocator allocator;
 public:
     class Iterator;
-
+    class Exception;
     MathVector();
-
     MathVector(const T& DefaultValue);
-
     template<class... T2,
              typename std::enable_if<sizeof...(T2) == N, int>::type = 0,
              typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type = 0>
     MathVector(T2... args);
-
     MathVector(const MathVector<T, N, Allocator>& other);
-
     template<unsigned int N2,
              typename... T2,
              typename std::enable_if<sizeof...(T2) + N2 == N, int>::type = 0,
              typename std::enable_if<MathVectorHelper::AllSame<T, T2...>::value, int>::type = 0>
     MathVector(const MathVector<T, N2, Allocator>& other, T2... args);
-
     virtual ~MathVector();
-
     T& operator[](unsigned int i);
-
     const T& operator[](unsigned int i) const;
-
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
     MathVector& operator+=(const MathVector<T,N2,Allocator>& other);
-
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
     MathVector operator+(const MathVector<T,N2,Allocator>& other) const;
-
     template<unsigned int N2,
              typename std::enable_if<(N2 > N), int>::type = 0>
     MathVector<T, N2, Allocator> operator+(const MathVector<T, N2, Allocator>& other) const;
-
     MathVector operator-() const;
-
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
     MathVector& operator-=(const MathVector<T,N2,Allocator>& other);
-
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
     MathVector operator-(const MathVector<T,N2,Allocator>& other) const;
-
     template<unsigned int N2,
              typename std::enable_if<(N2 > N), int>::type = 0>
     MathVector<T, N2, Allocator> operator-(const MathVector<T, N2, Allocator>& other) const;
-
     template<unsigned int N2,
              typename std::enable_if<N2 <= N, int>::type = 0>
     MathVectorHelper::FloatingType<T> operator*(const MathVector<T,N2,Allocator>& other) const;
-
     template<unsigned int N2,
              typename std::enable_if<(N2 > N), int>::type = 0>
     MathVectorHelper::FloatingType<T> operator*(const MathVector<T, N2, Allocator>& other) const;
-
     MathVector& operator*=(MathVectorHelper::FloatingType<T> other);
-
     MathVector operator*(MathVectorHelper::FloatingType<T> other) const;
-
     MathVector& operator/=(MathVectorHelper::FloatingType<T> other);
-
     MathVector operator/(MathVectorHelper::FloatingType<T> other) const;
-
     MathVectorHelper::FloatingType<T> getLength() const;
-
     Iterator begin();
-
     Iterator end();
 };
 
@@ -116,7 +92,8 @@ template <class T,
 class MathVector<T,N,Allocator>::Iterator {
 private:
     T* data;
-    Iterator(T* data);
+    MathVector<T,N,Allocator>* myself;
+    Iterator(T* data, MathVector<T,N,Allocator>* myself);
     friend class MathVector<T,N,Allocator>;
 public:
     typedef int difference_type;
@@ -149,6 +126,17 @@ public:
     bool operator>=(const Iterator& it) const;
     T* operator->();
     const T* operator->() const;
+};
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+class MathVector<T,N,Allocator>::Exception : std::exception {
+    std::string message;
+public:
+    Exception(const std::string& s);
+    ~Exception();
+    const char* what() const throw();
 };
 
 template <class T,
@@ -224,7 +212,6 @@ template <class T,
           unsigned int N,
           class Allocator>
 MathVector<T,N,Allocator>::~MathVector() {
-    allocator = Allocator();
     allocator.deallocate(data, N);
     data = nullptr;
 }
@@ -233,14 +220,18 @@ template <class T,
           unsigned int N,
           class Allocator>
 T& MathVector<T,N,Allocator>::operator[](unsigned int i) {
-    return data[i];
+    if (i < N)
+        return data[i];
+    throw MathVector<T,N,Allocator>::Exception("Index out of range");
 }
 
 template <class T,
           unsigned int N,
           class Allocator>
 const T& MathVector<T,N,Allocator>::operator[](unsigned int i) const {
-    return data[i];
+    if (i < N)
+        return data[i];
+    throw MathVector<T,N,Allocator>::Exception("Index out of range");
 }
 
 template <class T,
@@ -362,6 +353,8 @@ template <class T,
           unsigned int N,
           class Allocator>
 MathVector<T, N, Allocator>& MathVector<T, N, Allocator>::operator/=(MathVectorHelper::FloatingType<T> other) {
+    if (other == 0.0)
+        throw MathVector<T,N,Allocator>::Exception("Division by zero.");
     for (int i = 0; i < N; i++)
         this->operator[](i) /= other;
     return *this;
@@ -399,23 +392,24 @@ typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::end(
 template <class T,
           unsigned int N,
           class Allocator>
-MathVector<T, N, Allocator>::Iterator::Iterator(T* data) : data(data) {}
+MathVector<T, N, Allocator>::Iterator::Iterator(T* data, MathVector<T,N,Allocator>* myself) : data(data), myself(myself) {}
 
 template <class T,
           unsigned int N,
           class Allocator>
-MathVector<T, N, Allocator>::Iterator::Iterator() : data(nullptr) {}
+MathVector<T, N, Allocator>::Iterator::Iterator() : data(nullptr), myself(nullptr) {}
 
 template <class T,
           unsigned int N,
           class Allocator>
-MathVector<T, N, Allocator>::Iterator::Iterator(const Iterator& it) : data(it.data) {}
+MathVector<T, N, Allocator>::Iterator::Iterator(const Iterator& it) : data(it.data), myself(it.myself) {}
 
 template <class T,
           unsigned int N,
           class Allocator>
 typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator=(const Iterator& it) {
     this->data = it.data;
+    this->myself = it.myself;
     return *this;
 }
 
@@ -428,6 +422,10 @@ template <class T,
           unsigned int N,
           class Allocator>
 T& MathVector<T, N, Allocator>::Iterator::operator*() {
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return *data;
 }
 
@@ -435,6 +433,10 @@ template <class T,
           unsigned int N,
           class Allocator>
 const T& MathVector<T, N, Allocator>::Iterator::operator*() const {
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return *data;
 }
 
@@ -442,6 +444,10 @@ template <class T,
           unsigned int N,
           class Allocator>
 typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator++() {
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     ++data;
     return *this;
 }
@@ -450,6 +456,10 @@ template <class T,
           unsigned int N,
           class Allocator>
 typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator++(int x) {
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     Iterator it(*this);
     ++data;
     return it;
@@ -460,6 +470,10 @@ template <class T,
           class Allocator>
 typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator--() {
     --data;
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return *this;
 }
 
@@ -469,6 +483,10 @@ template <class T,
 typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator--(int x) {
     Iterator it(*this);
     --data;
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return it;
 }
 
@@ -477,6 +495,10 @@ template <class T,
           class Allocator>
 typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator+=(int x) {
     data+=x;
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N < data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return *this;
 }
 
@@ -486,6 +508,10 @@ template <class T,
 typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator+(int x) const {
     Iterator it(*this);
     data+=x;
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N < data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return it;
 }
 
@@ -501,6 +527,10 @@ template <class T,
           class Allocator>
 typename MathVector<T, N, Allocator>::Iterator& MathVector<T, N, Allocator>::Iterator::operator-=(int x) {
     data-=x;
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N < data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return *this;
 }
 
@@ -510,6 +540,10 @@ template <class T,
 typename MathVector<T, N, Allocator>::Iterator MathVector<T, N, Allocator>::Iterator::operator-(int x) const {
     Iterator it(*this);
     data-=x;
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N < data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return it;
 }
 
@@ -531,6 +565,8 @@ template <class T,
           unsigned int N,
           class Allocator>
 int MathVector<T, N, Allocator>::Iterator::operator-(const typename MathVector<T, N, Allocator>::Iterator& it) const {
+    if (this->myself != it.myself)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return this->data - it.data;
 }
 
@@ -538,14 +574,14 @@ template <class T,
           unsigned int N,
           class Allocator>
 bool MathVector<T, N, Allocator>::Iterator::operator==(const Iterator& it) const {
-    return this->data == it.data;
+    return this->data == it.data && this->myself == it.myself;
 }
 
 template <class T,
           unsigned int N,
           class Allocator>
 bool MathVector<T, N, Allocator>::Iterator::operator!=(const Iterator& it) const {
-    return this->data != it.data;
+    return this->data != it.data || this->myself != it.myself;
 }
 
 template <class T,
@@ -580,6 +616,10 @@ template <class T,
           unsigned int N,
           class Allocator>
 T* MathVector<T, N, Allocator>::Iterator::operator->() {
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return data;
 }
 
@@ -587,5 +627,27 @@ template <class T,
           unsigned int N,
           class Allocator>
 const T* MathVector<T, N, Allocator>::Iterator::operator->() const {
+    if (myself == nullptr)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
+    if (myself->data > data || myself->data + N <= data)
+        throw MathVector<T, N, Allocator>::Exception("Index out of range");
     return data;
+}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>::Exception::Exception(const std::string& s) : message(s) {}
+
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+MathVector<T, N, Allocator>::Exception::~Exception() {}
+
+template <class T,
+          unsigned int N,
+          class Allocator>
+const char* MathVector<T, N, Allocator>::Exception::what() const throw() {
+    return message.c_str();
 }
