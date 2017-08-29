@@ -10,7 +10,7 @@ ODIR = bin/
 
 MAKEDIR = mkdir -p
 
-SRCS = main.cpp #file_data.cpp bitmap.cpp png_hidder.cpp
+SRCS = main.cpp vector.cpp file_data.cpp model.cpp obj_parser.cpp
 
 OBJS = $(join $(addsuffix $(ODIR), $(dir $(SRCS))), $(notdir $(SRCS:.cpp=.o)))
 
@@ -18,9 +18,9 @@ MAIN = $(ODIR)app
 
 ARGS =
 
-.PHONY: all clean run
+.PHONY: all preclean postclean run
 
-all: $(MAIN) clean #run
+all: preclean $(MAIN) postclean #run
 
 $(MAIN): $(ODIR) $(OBJS)
 	$(CXX) $(CPPFLAGS) $(INCLUDES) -o $(MAIN) $(OBJS) $(LFLAGS) $(LIBS)
@@ -31,7 +31,10 @@ $(ODIR)%.o: %.cpp
 $(ODIR):
 	$(MAKEDIR) $(ODIR)
 
-clean:
+preclean:
+	$(RM) $(ODIR)*.o
+
+postclean:
 	$(RM) $(ODIR)*.o
 
 run:

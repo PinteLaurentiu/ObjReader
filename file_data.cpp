@@ -8,8 +8,12 @@ FileData::FileData(const std::string& path) : size(0), data(nullptr) {
         throw Exception("Invalid path!");
 
     std::ifstream f(path, std::ios::in | std::ios::binary | std::ios::ate);
+
     if (!f)
-        throw Exception(std::string("File <") + path + "> could not be opened!");
+        throw Exception(std::string("File <") +
+                        path +
+                        "> could not be opened!");
+
     size = (Size)f.tellg();
     f.seekg(0, f.beg);
     data = new Byte[size];
@@ -18,9 +22,8 @@ FileData::FileData(const std::string& path) : size(0), data(nullptr) {
 }
 
 FileData& FileData::operator=(const FileData& fd) {
-    if (data) {
+    if (data)
         delete[] data;
-    }
     size = fd.size;
     data = new Byte[size];
     Byte* current = data;

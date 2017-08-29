@@ -12,7 +12,7 @@ public:
     class Exception;
     FileData();
     FileData(const std::string&);
-    FileData(Byte* data, Size dataLength);
+    FileData(Byte*, Size);
     FileData(const FileData&);
     FileData& operator=(const FileData&);
     ~FileData();
@@ -27,7 +27,7 @@ private:
 
 class FileData::Exception : public std::exception {
 public:
-    Exception(const std::string& error);
+    Exception(const std::string&);
     ~Exception();
     const char* what() const throw() override;
 private:
